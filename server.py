@@ -7,7 +7,7 @@ from ocpp.v16 import call_result
 from ocpp.v16.enums import Action
 import websockets
 
-#CHARGER_SUPERVISION_URL = ws://192.168.1.10:9000
+#CHARGER_SUPERVISION_URL = ws://192.168.1.101:9000
 
 logging.basicConfig(level=logging.INFO)
 
@@ -20,6 +20,16 @@ logging.getLogger("ocpp").setLevel(logging.WARNING)  # Change to WARNING or ERRO
 class ChargePoint(cp):
     def __init__(self, id, websocket):
         super().__init__(id, websocket)
+
+
+    @on(Action.start_transaction)
+    async def on_start_transaction(self, connector_id: int, id_tag: str, meter_start: int, timestamp: str, **kwargs):
+        logging.info(f"StartTransaction received: Connector ID: {connector_id}, ID Tag: {id_tag}, Meter Start: {meter_start}, Timestamp: {timestamp}")
+        # Respond with an Accepted status and a transaction ID
+        return call_result.StartTransaction(
+        transaction_id=1,  # Replace with your logic to generate a transaction ID
+        id_tag_info={"status": "Accepted"}
+    )
 
     @on(Action.stop_transaction)
     async def on_stop_transaction(self, **kwargs):
@@ -84,7 +94,7 @@ class ChargePoint(cp):
         """
         global voltage_data  # Access the shared voltage data dictionary
 
-        logging.info(f"MeterValues received: Connector ID: {connector_id}, Meter Values: {meter_value}")
+        #logging.info(f"MeterValues received: Connector ID: {connector_id}, Meter Values: {meter_value}")
 
         for value in meter_value:
             timestamp = value.get("timestamp")
@@ -107,19 +117,6 @@ class ChargePoint(cp):
         return call_result.MeterValues()
     
 
-
-async def print_voltage_data():
-    """
-    Periodically print the stored voltage data every 5 seconds.
-    """
-    while True:
-        if voltage_data:
-            logging.info("Voltage Data:")
-            for connector_id, data in voltage_data.items():
-                logging.info(f"Connector {connector_id}: {data['value']} {data['unit']} at {data['timestamp']}")
-        else:
-            logging.info("No voltage data available.")
-        await asyncio.sleep(5)
 
 async def on_connect(websocket):
     """
@@ -145,8 +142,7 @@ async def main():
 
     logging.info("OCPP 1.6 server started. Waiting for connections...")
 
-     # Start the voltage printing task
-    asyncio.create_task(print_voltage_data())
+     
 
     try:
         await server.wait_closed()
