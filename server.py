@@ -7,6 +7,7 @@ from ocpp.v16 import call_result, call
 from ocpp.v16.enums import Action
 import websockets
 
+
 #CHARGER_SUPERVISION_URL = ws://192.168.1.101:9000
 
 logging.basicConfig(level=logging.INFO)
