@@ -1,15 +1,21 @@
 import asyncio
 import logging
+from datetime import datetime, timezone  # Import for handling timestamps
 from ocpp.routing import on
 from ocpp.v16 import ChargePoint as cp
 from ocpp.v16 import call_result
 from ocpp.v16.enums import Action
 import websockets
 
-#CHARGER_SUPERVISION_URL = ws://192.168.0.10:9000
-
+#CHARGER_SUPERVISION_URL = ws://192.168.1.10:9000
 
 logging.basicConfig(level=logging.INFO)
+
+# Shared dictionary to store voltage values
+voltage_data = {}
+
+# Suppress OCPP library logs or set a specific level
+logging.getLogger("ocpp").setLevel(logging.WARNING)  # Change to WARNING or ERROR to reduce verbosity
 
 class ChargePoint(cp):
     def __init__(self, id, websocket):
@@ -21,7 +27,8 @@ class ChargePoint(cp):
         Handle StatusNotification messages from the charger.
         Logs the connector ID, status, and error code.
         """
-        logging.info(f"StatusNotification received: Connector {connector_id}, Status: {status}, Error Code: {error_code}")
+        self.status = status
+        #logging.info(f"StatusNotification received: Connector {connector_id}, Status: {status}, Error Code: {error_code}")
         return call_result.StatusNotification()
 
     @on(Action.heartbeat)
@@ -30,10 +37,80 @@ class ChargePoint(cp):
         Handle Heartbeat messages from the charger.
         Responds with the current server time.
         """
-        from datetime import datetime, timezone
         current_time = datetime.now(timezone.utc).isoformat()
-        logging.info(f"Heartbeat received. Responding with current time: {current_time}")
+
+        #logging.info(f"Heartbeat received. Responding with current time: {current_time}")
         return call_result.Heartbeat(current_time=current_time)
+
+    @on(Action.boot_notification)
+    async def on_boot_notification(self, charge_point_model: str, charge_point_vendor: str, **kwargs):
+        """
+        Handle BootNotification messages from the charger.
+        Logs the charge point model and vendor, and responds with an Accepted status.
+        """
+        #logging.info(f"BootNotification received: Model: {charge_point_model}, Vendor: {charge_point_vendor}")
+        # Respond with an Accepted status and a heartbeat interval
+        return call_result.BootNotification(
+            current_time=datetime.now(timezone.utc).isoformat(),
+            interval=30,  # Heartbeat interval in seconds
+            status="Accepted"
+        )
+
+    @on(Action.security_event_notification)
+    async def on_security_event_notification(self, type: str, timestamp: str, **kwargs):
+        """
+        Handle SecurityEventNotification messages from the charger.
+        Logs the event type and timestamp.
+        """
+        #logging.info(f"SecurityEventNotification received: Type: {type}, Timestamp: {timestamp}")
+        return call_result.SecurityEventNotification()
+
+
+    @on(Action.meter_values)
+    async def on_meter_values(self, connector_id: int, meter_value: list, **kwargs):
+        """
+        Handle MeterValues messages from the charger.
+        Logs the connector ID and the meter values.
+        Extracts and logs the L1 voltage.
+        """
+        global voltage_data  # Access the shared voltage data dictionary
+
+        logging.info(f"MeterValues received: Connector ID: {connector_id}, Meter Values: {meter_value}")
+
+        for value in meter_value:
+            timestamp = value.get("timestamp")
+            sampled_values = value.get("sampled_value", [])
+            for sampled_value in sampled_values:
+                measurand = sampled_value.get("measurand", "Unknown")
+                phase = sampled_value.get("phase", "Unknown")
+                value = sampled_value.get("value", "Unknown")
+                unit = sampled_value.get("unit", "Unknown")
+
+                # Check for L1 voltage
+                if measurand == "Voltage" and phase == "L1-N":
+                    voltage_data[connector_id] = {
+                        "timestamp": timestamp,
+                        "value": value,
+                        "unit": unit
+                    }
+                    logging.info(f"L1 Voltage for Connector {connector_id}: {value} {unit} at {timestamp}")
+
+        return call_result.MeterValues()
+    
+
+
+async def print_voltage_data():
+    """
+    Periodically print the stored voltage data every 5 seconds.
+    """
+    while True:
+        if voltage_data:
+            logging.info("Voltage Data:")
+            for connector_id, data in voltage_data.items():
+                logging.info(f"Connector {connector_id}: {data['value']} {data['unit']} at {data['timestamp']}")
+        else:
+            logging.info("No voltage data available.")
+        await asyncio.sleep(5)
 
 async def on_connect(websocket):
     """
@@ -58,6 +135,10 @@ async def main():
     )
 
     logging.info("OCPP 1.6 server started. Waiting for connections...")
+
+     # Start the voltage printing task
+    asyncio.create_task(print_voltage_data())
+
     try:
         await server.wait_closed()
     except asyncio.CancelledError:
