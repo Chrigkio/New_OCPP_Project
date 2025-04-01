@@ -21,6 +21,15 @@ class ChargePoint(cp):
     def __init__(self, id, websocket):
         super().__init__(id, websocket)
 
+    @on(Action.stop_transaction)
+    async def on_stop_transaction(self, **kwargs):
+        """
+        Handle StopTransaction messages from the charger.
+        Acknowledge the message and log the transaction details.
+        """
+        logging.info(f"StopTransaction received: {kwargs}")
+        return call_result.StopTransaction() 
+
     @on(Action.status_notification)
     async def on_status_notification(self, connector_id: int, error_code: str, status: str, **kwargs):
         """
