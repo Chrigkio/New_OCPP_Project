@@ -3,7 +3,7 @@ import logging
 from datetime import datetime, timezone  # Import for handling timestamps
 from ocpp.routing import on
 from ocpp.v16 import ChargePoint as cp
-from ocpp.v16 import call_result
+from ocpp.v16 import call_result, call
 from ocpp.v16.enums import Action
 import websockets
 
@@ -117,6 +117,34 @@ class ChargePoint(cp):
         return call_result.MeterValues()
     
 
+async def send_remote_stop_transaction(transaction_id: int, charge_point: ChargePoint):
+    """
+    Send a RemoteStopTransaction command to the charge point.
+    :param transaction_id: The ID of the transaction to stop.
+    :param charge_point: The ChargePoint instance.
+    """
+    if charge_point:
+        # Use the correct RemoteStopTransaction class
+        request = call.RemoteStopTransaction(transaction_id=transaction_id)
+        response = await charge_point.call(request)
+
+        if response.status == "Accepted":
+            logging.info(f"RemoteStopTransaction for transaction ID {transaction_id} was accepted.")
+        else:
+            logging.warning(f"RemoteStopTransaction for transaction ID {transaction_id} was rejected.")
+    else:
+        logging.error("No charge point connected to send RemoteStopTransaction.")
+
+async def listen_for_stop_command(charge_point: ChargePoint):
+    """
+    Listen for "stop" input in the terminal to stop charging remotely.
+    """
+    while True:
+        user_input = input("Type 'stop' to stop charging: ").strip().lower()
+        if user_input == "stop":
+            transaction_id = 1  # Replace with the actual transaction ID
+            await send_remote_stop_transaction(transaction_id, charge_point)
+            print(f"Transaction {transaction_id} stopped successfully.")  # User feedback
 
 async def on_connect(websocket):
     """
@@ -128,6 +156,8 @@ async def on_connect(websocket):
 
     logging.info(f"Charge point {charge_point_id} connected.")
     try:
+        # Start listening for "stop" input in a separate task
+        asyncio.create_task(listen_for_stop_command(charge_point))
         await charge_point.start()
     except Exception as e:
         logging.error(f"Error handling charge point {charge_point_id}: {e}")
