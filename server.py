@@ -138,9 +138,12 @@ async def send_remote_stop_transaction(transaction_id: int, charge_point: Charge
 async def listen_for_stop_command(charge_point: ChargePoint):
     """
     Listen for "stop" input in the terminal to stop charging remotely.
+    Runs the input function in a separate thread to avoid blocking the event loop.
     """
     while True:
-        user_input = input("Type 'stop' to stop charging: ").strip().lower()
+        # Run the input function in a separate thread
+        user_input = await asyncio.to_thread(input, "Type 'stop' to stop charging: ")
+        user_input = user_input.strip().lower()
         if user_input == "stop":
             transaction_id = 1  # Replace with the actual transaction ID
             await send_remote_stop_transaction(transaction_id, charge_point)
@@ -166,13 +169,17 @@ async def main():
     """
     Start the WebSocket server to listen for OCPP connections.
     """
+    # Configure the WebSocket server with a custom ping interval and timeout
     server = await websockets.serve(
-        on_connect, "0.0.0.0", 9000, subprotocols=["ocpp1.6"]
+        on_connect,
+        "0.0.0.0",
+        9000,
+        subprotocols=["ocpp1.6"],
+        ping_interval=30,  # Send a ping every 30 seconds
+        ping_timeout=60,   # Wait 60 seconds for a pong before considering the connection closed
     )
 
     logging.info("OCPP 1.6 server started. Waiting for connections...")
-
-     
 
     try:
         await server.wait_closed()
