@@ -12,8 +12,8 @@ import websockets
 
 logging.basicConfig(level=logging.INFO)
 
-# Shared dictionary to store voltage values
-voltage_data = {}
+# Shared dictionary to store meter data (voltage, active power, current, etc.)
+meter_data = {}
 
 # Suppress OCPP library logs or set a specific level
 logging.getLogger("ocpp").setLevel(logging.WARNING)  # Change to WARNING or ERROR to reduce verbosity
@@ -91,11 +91,13 @@ class ChargePoint(cp):
         """
         Handle MeterValues messages from the charger.
         Logs the connector ID and the meter values.
-        Extracts and logs the L1 voltage.
+        Extracts and logs voltage, active power, and current.
         """
-        global voltage_data  # Access the shared voltage data dictionary
+        global meter_data  # Access the shared meter data dictionary
 
-        #logging.info(f"MeterValues received: Connector ID: {connector_id}, Meter Values: {meter_value}")
+        # Initialize the connector's data if not already present
+        if connector_id not in meter_data:
+            meter_data[connector_id] = {}
 
         for value in meter_value:
             timestamp = value.get("timestamp")
@@ -106,14 +108,28 @@ class ChargePoint(cp):
                 value = sampled_value.get("value", "Unknown")
                 unit = sampled_value.get("unit", "Unknown")
 
-                # Check for L1 voltage
+                # Store data based on the measurand
                 if measurand == "Voltage" and phase == "L1-N":
-                    voltage_data[connector_id] = {
+                    meter_data[connector_id]["voltage"] = {
                         "timestamp": timestamp,
                         "value": value,
                         "unit": unit
                     }
                     logging.info(f"L1 Voltage for Connector {connector_id}: {value} {unit} at {timestamp}")
+                elif measurand == "Power.Active.Import":
+                    meter_data[connector_id]["active_power"] = {
+                        "timestamp": timestamp,
+                        "value": value,
+                        "unit": unit
+                    }
+                    logging.info(f"Active Power for Connector {connector_id}: {value} {unit} at {timestamp}")
+                elif measurand == "Current.Import":
+                    meter_data[connector_id]["current"] = {
+                        "timestamp": timestamp,
+                        "value": value,
+                        "unit": unit
+                    }
+                    logging.info(f"Current for Connector {connector_id}: {value} {unit} at {timestamp}")
 
         return call_result.MeterValues()
     
