@@ -152,16 +152,42 @@ async def send_remote_stop_transaction(transaction_id: int, charge_point: Charge
     else:
         logging.error("No charge point connected to send RemoteStopTransaction.")
 
-async def listen_for_stop_command(charge_point: ChargePoint):
+async def send_remote_start_transaction(id_tag: str, connector_id: int, charge_point: ChargePoint):
     """
-    Listen for "stop" input in the terminal to stop charging remotely.
+    Send a RemoteStartTransaction command to the charge point.
+    :param id_tag: The ID tag to authorize the transaction.
+    :param connector_id: The connector ID to start charging on.
+    :param charge_point: The ChargePoint instance.
+    """
+    if charge_point:
+        request = call.RemoteStartTransaction(
+            id_tag=id_tag,
+            connector_id=connector_id
+        )
+        response = await charge_point.call(request)
+
+        if response.status == "Accepted":
+            logging.info(f"RemoteStartTransaction for Connector {connector_id} with ID Tag {id_tag} was accepted.")
+        else:
+            logging.warning(f"RemoteStartTransaction for Connector {connector_id} with ID Tag {id_tag} was rejected.")
+    else:
+        logging.error("No charge point connected to send RemoteStartTransaction.")
+
+async def listen_for_commands(charge_point: ChargePoint):
+    """
+    Listen for "start" or "stop" input in the terminal to control charging remotely.
     Runs the input function in a separate thread to avoid blocking the event loop.
     """
     while True:
         # Run the input function in a separate thread
-        user_input = await asyncio.to_thread(input, "Type 'stop' to stop charging: ")
+        user_input = await asyncio.to_thread(input, "Type 'start' to start charging or 'stop' to stop charging: ")
         user_input = user_input.strip().lower()
-        if user_input == "stop":
+        if user_input == "start":
+            id_tag = "TACW2242422T8395"  # Replace with the actual ID tag
+            connector_id = 1  # Replace with the actual connector ID
+            await send_remote_start_transaction(id_tag, connector_id, charge_point)
+            print(f"Charging started on Connector {connector_id} with ID Tag {id_tag}.")  # User feedback
+        elif user_input == "stop":
             transaction_id = 1  # Replace with the actual transaction ID
             await send_remote_stop_transaction(transaction_id, charge_point)
             print(f"Transaction {transaction_id} stopped successfully.")  # User feedback
@@ -176,8 +202,8 @@ async def on_connect(websocket):
 
     logging.info(f"Charge point {charge_point_id} connected.")
     try:
-        # Start listening for "stop" input in a separate task
-        asyncio.create_task(listen_for_stop_command(charge_point))
+        # Start listening for "start" and "stop" input in a separate task
+        asyncio.create_task(listen_for_commands(charge_point))
         await charge_point.start()
     except Exception as e:
         logging.error(f"Error handling charge point {charge_point_id}: {e}")
