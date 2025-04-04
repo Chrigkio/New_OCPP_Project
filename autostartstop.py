@@ -6,6 +6,8 @@ from ocpp.v16 import ChargePoint as cp
 from ocpp.v16 import call_result, call
 from ocpp.v16.enums import Action
 import websockets
+from flask import Flask, render_template, request
+import threading
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -15,6 +17,29 @@ meter_data = {}
 
 # Suppress OCPP library logs or set a specific level
 logging.getLogger("ocpp").setLevel(logging.WARNING)
+
+app = Flask(__name__)
+command = None  # Global variable to store the command ("start" or "stop")
+
+
+@app.route("/", methods=["GET", "POST"])
+def index():
+    global command
+    if request.method == "POST":
+        if "start" in request.form:
+            command = "start"
+        elif "stop" in request.form:
+            command = "stop"
+    return """
+    <form method="post">
+        <button name="start" type="submit">Start</button>
+        <button name="stop" type="submit">Stop</button>
+    </form>
+    """
+
+
+def run_flask():
+    app.run(host="0.0.0.0", port=5000)
 
 
 class ChargePoint(cp):
@@ -125,16 +150,14 @@ async def listen_for_commands(charge_point: ChargePoint, command: str):
 
 async def simulated_input(charge_point: ChargePoint):
     """
-    Simulate input by providing 'start' and 'stop' commands every 3 seconds.
+    Simulate input by using the global 'command' variable set by Flask buttons.
     """
-    commands = ["start", "stop"]  # List of commands to alternate between
-    index = 0  # Index to track the current command
-
+    global command
     while True:
-        command = commands[index % len(commands)]  # Alternate between "start" and "stop"
-        index += 1
-        await listen_for_commands(charge_point, command)  # Pass the command to listen_for_commands
-        await asyncio.sleep(3)  # Wait for 3 seconds before the next command
+        if command:
+            await listen_for_commands(charge_point, command)
+            command = None  # Reset the command after processing
+        await asyncio.sleep(1)  # Check for new commands every second
 
 
 async def on_connect(websocket):
@@ -175,4 +198,8 @@ async def main():
 
 
 if __name__ == "__main__":
+    # Start Flask in a separate thread
+    flask_thread = threading.Thread(target=run_flask, daemon=True)
+    flask_thread.start()
+
     asyncio.run(main())

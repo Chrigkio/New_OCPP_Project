@@ -19,8 +19,8 @@ meter_data = {}
 logging.getLogger("ocpp").setLevel(logging.WARNING)  # Change to WARNING or ERROR to reduce verbosity
 
 class ChargePoint(cp):
-    def __init__(self, id, websocket):
-        super().__init__(id, websocket)
+    def __init__(self, charge_point_id, websocket):
+        super().__init__(charge_point_id, websocket)
 
 
     @on(Action.start_transaction)
