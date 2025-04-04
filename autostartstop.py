@@ -6,7 +6,7 @@ from ocpp.v16 import ChargePoint as cp
 from ocpp.v16 import call_result, call
 from ocpp.v16.enums import Action
 import websockets
-from flask import Flask, render_template, request
+from flask import Flask, request
 import threading
 
 # Configure logging
