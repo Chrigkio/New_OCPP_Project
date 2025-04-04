@@ -98,6 +98,23 @@ class ChargePoint(cp):
 
         return call_result.MeterValues()
 
+    @on(Action.heartbeat)
+    async def on_heartbeat(self):
+        """
+        Handle the Heartbeat action.
+        """
+        logging.info("Heartbeat received.")
+        current_time = datetime.now(timezone.utc).isoformat()
+        return call_result.Heartbeat(current_time=current_time)
+
+    @on(Action.status_notification)
+    async def on_status_notification(self, connector_id: int, error_code: str, status: str, **kwargs):
+        """
+        Handle the StatusNotification action.
+        """
+        logging.info(f"StatusNotification received: Connector ID: {connector_id}, Error Code: {error_code}, Status: {status}")
+        return call_result.StatusNotification()
+
 
 async def send_remote_stop_transaction(transaction_id: int, charge_point: ChargePoint):
     if charge_point:
