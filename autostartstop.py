@@ -32,8 +32,8 @@ def index():
             command = "stop"
     return """
     <form method="post">
-        <button name="start" type="submit">Start</button>
-        <button name="stop" type="submit">Stop</button>
+        <button name="start" type="submit" style="background-color: green; color: white;">Start</button>
+        <button name="stop" type="submit" style="background-color: red; color: white;">Stop</button>
     </form>
     """
 
@@ -151,7 +151,6 @@ async def listen_for_commands(charge_point: ChargePoint, command: str):
     :param charge_point: The ChargePoint instance.
     :param command: The command to process ("start" or "stop").
     """
-    command = command.strip().lower()
     if command == "start":
         id_tag = "TACW2242422T8395"  # Replace with the actual ID tag
         connector_id = 1  # Replace with the actual connector ID
@@ -182,6 +181,9 @@ async def on_connect(websocket):
     Handle a new connection from a charge point.
     Create a ChargePoint instance and start listening for messages.
     """
+    global command
+    command = None
+    
     charge_point_id = websocket.request.path.strip("/")
     charge_point = ChargePoint(charge_point_id, websocket)
 
