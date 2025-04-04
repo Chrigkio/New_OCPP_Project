@@ -7,7 +7,7 @@ from ocpp.v16 import ChargePoint as cp
 from ocpp.v16 import call_result, call
 from ocpp.v16.enums import Action
 import websockets
-from flask import Flask, request
+from flask import Flask, request, send_from_directory
 
 
 # Configure logging
@@ -23,19 +23,35 @@ app = Flask(__name__)
 command = None  # Global variable to store the command ("start" or "stop")
 
 
+@app.route("/images/<path:filename>")
+def serve_image(filename):
+    """
+    Serve image files from the 'images' directory.
+    """
+    return send_from_directory("images", filename)
+
+
 @app.route("/", methods=["GET", "POST"])
 def index():
     global command
+    charger_status = "Idle"  # Default status of the charger
+    img_path = "/images/electric-vehicle-charger_11631788.jpg"  # Updated to use Flask route
     if request.method == "POST":
         if "start" in request.form:
             command = "start"
+            charger_status = "Charging"
         elif "stop" in request.form:
             command = "stop"
-    return """
-    <form method="post">
-        <button name="start" type="submit" style="background-color: green; color: white;">Start</button>
-        <button name="stop" type="submit" style="background-color: red; color: white;">Stop</button>
-    </form>
+            charger_status = "Stopped"
+    return f"""
+    <div style="text-align: center;">
+        <img src="{img_path}" alt="Charger Image" style="margin-bottom: 10px;">
+        <p>Status: <strong>{charger_status}</strong></p>
+        <form method="post">
+            <button name="start" type="submit" style="background-color: green; color: white;">Start</button>
+            <button name="stop" type="submit" style="background-color: red; color: white;">Stop</button>
+        </form>
+    </div>
     """
 
 
@@ -110,6 +126,8 @@ class ChargePoint(cp):
 
     @on(Action.status_notification)
     async def on_status_notification(self, connector_id: int, error_code: str, status: str, **kwargs):
+
+
         """
         Handle the StatusNotification action.
         """
